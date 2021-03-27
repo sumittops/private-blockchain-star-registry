@@ -1,5 +1,5 @@
 {
-  "name": "project_1",
+  "name": "private_blockchain_star_registry",
   "version": "1.0.0",
   "description": "This project creates a Blockchain application to store data into the blocks",
   "main": "index.js",
@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node app"
   },
-  "author": "Udacity - jose.morales@udacity.com",
+  "author": "Sumit Majumdar",
   "license": "ISC",
   "dependencies": {
     "bitcoinjs-lib": "^5.2.0",
