@@ -10,7 +10,8 @@
 
 const SHA256 = require("crypto-js/sha256");
 const BlockClass = require("./block.js");
-const { GENESIS_BLOCK_DATA } = require("./constants");
+const Block = BlockClass.Block;
+const { GENESIS_BLOCK_DATA, TIME_VERIFICATION_DURATION } = require("./constants");
 const bitcoinMessage = require("bitcoinjs-message");
 
 class Blockchain {
@@ -64,9 +65,19 @@ class Blockchain {
   _addBlock(block) {
     let self = this;
     return new Promise(async (resolve, reject) => {
-      const height = await this.getChainHeight();
-      const prevBlock = this.getBlockByHeight(height);
-      block.previousBlockHash = prevBlock.hash;
+      try {
+        const height = await this.getChainHeight();
+        block.height = height + 1;
+        block.time = new Date().getTime().toString().slice(0,-3);
+        const prevBlock = this.getBlockByHeight(height);
+        block.previousBlockHash = prevBlock ? prevBlock.hash : null;
+        block.hash = SHA256(JSON.stringify(block)).toString();
+        this.chain.push(block);
+        self.height += 1;
+        resolve(block)
+      } catch(e) {
+        reject(e);
+      }
     });
   }
 
@@ -79,7 +90,9 @@ class Blockchain {
    * @param {*} address
    */
   requestMessageOwnershipVerification(address) {
-    return new Promise((resolve) => {});
+    return new Promise((resolve) => {
+      resolve(`${address}:${new Date().getTime().toString().slice(0, -3)}:starRegistry`);
+    });
   }
 
   /**
@@ -101,7 +114,25 @@ class Blockchain {
    */
   submitStar(address, message, signature, star) {
     let self = this;
-    return new Promise(async (resolve, reject) => {});
+    return new Promise(async (resolve, reject) => {
+      try {
+        const timeFromMsg = parseInt(message.split(':')[1]);
+        const currentTime = parseInt(new Date().getTime().toString().slice(0, -3));
+        if (currentTime - timeFromMsg > TIME_VERIFICATION_DURATION) {
+          reject (Error('Error: Time duration for submitting has elapsed'));
+        }
+        const isVerified = bitcoinMessage.verify(message, address, signature);
+        if (!isVerified) {
+          reject(Error('Error: Message could not verified'));
+        }
+        const newBlock = new Block({ owner: address, star });
+        this._addBlock(newBlock);
+        this.validateChain();
+        resolve(newBlock);
+      } catch(e) {
+        reject(e);
+      }
+    });
   }
 
   /**
@@ -112,7 +143,10 @@ class Blockchain {
    */
   getBlockByHash(hash) {
     let self = this;
-    return new Promise((resolve, reject) => {});
+    return new Promise((resolve, reject) => {
+      const resultBlock = self.chain.find(block => block.hash === hash);
+      resultBlock ? resolve(resultBlock) : reject(Error('Error: Block not found'));
+    });
   }
 
   /**
@@ -122,8 +156,8 @@ class Blockchain {
    */
   getBlockByHeight(height) {
     let self = this;
-    return new Promise((resolve, reject) => {
-      let block = self.chain.filter((p) => p.height === height)[0];
+    return new Promise((resolve) => {
+      let block = self.chain.find((p) => p.height === height);
       if (block) {
         resolve(block);
       } else {
@@ -141,7 +175,15 @@ class Blockchain {
   getStarsByWalletAddress(address) {
     let self = this;
     let stars = [];
-    return new Promise((resolve, reject) => {});
+    return new Promise((resolve) => {
+      self.chain.forEach(block => {
+        const { owner, star } = block.getBData();
+        if (owner === address) {
+          stars.push(star);
+        }
+      });
+      resolve(stars);
+    });
   }
 
   /**
@@ -153,7 +195,22 @@ class Blockchain {
   validateChain() {
     let self = this;
     let errorLog = [];
-    return new Promise(async (resolve, reject) => {});
+    return new Promise(async (resolve, reject) => {
+      if (self.height > 0) {
+        self.chain.forEach(async (block, idx) => {
+          const isValid = await block.validate();
+          if (!isValid) {
+            errorLog.push(Error('Error validating block'));
+          }
+          if (idx > 0 && block.previousBlockHash !== self.chain[idx - 1].hash) {
+            errorLog.push(Error('Error validating previous block hash'));
+          }
+        });
+          resolve(errorLog);
+      } else {
+        reject(Error('Cannot validate chain'));
+      }
+    });
   }
 }
 
