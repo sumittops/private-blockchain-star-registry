@@ -67,6 +67,10 @@ class Blockchain {
     let self = this;
     return new Promise(async (resolve, reject) => {
       try {
+        const errors = await self.validateChain();
+        if (errors.length > 0) {
+          return reject({ errors, message: 'Could not validate chain. Unable to add to block.' });
+        }
         block.height = self.height + 1;
         block.time = new Date().getTime().toString().slice(0,-3);
         const prevBlock = self.chain[self.height];
@@ -75,7 +79,6 @@ class Blockchain {
         this.chain.push(block);
         self.height += 1;
         resolve(block);
-        self.validateChain();
       } catch(e) {
         reject(e);
       }
@@ -202,10 +205,10 @@ class Blockchain {
           const block = self.chain[i];
           const isValid = await block.validate();
           if (!isValid) {
-            errorLog.push(Error('Error validating block'));
+            errorLog.push({ message: 'Error validating block', block });
           }
           if (i > 0 && block.previousBlockHash !== self.chain[i - 1].hash) {
-            errorLog.push(Error('Error validating previous block hash'));
+            errorLog.push({ message: 'Error validating previous block hash', block });
           }
         }
       }

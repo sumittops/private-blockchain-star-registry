@@ -33,18 +33,16 @@ class Block {
    *  3. Recalculate the hash of the entire block (Use SHA256 from crypto-js library)
    *  4. Compare if the auxiliary hash value is different from the calculated one.
    *  5. Resolve true or false depending if it is valid or not.
-   *  Note: to access the class values inside a Promise code you need to create an auxiliary value `let self = this;`
+   *  Note: to access the class values inside a Promise code you need to create an auxiliary value `let clonedSelf = this;`
    */
   validate() {
-    let self = this;
-    return new Promise((resolve, reject) => {
-      // Save in auxiliary variable the current block hash
-      const currentHash = self.hash;
-      self.hash = null;
-      const newHash = SHA256(JSON.stringify(self)).toString();
-      self.hash = currentHash;
-      resolve(currentHash === newHash);
-    });
+    const self = this;
+    const clonedSelf = { ...this };
+    return new Promise((resolve) => {
+      clonedSelf.hash = null;
+      const newHash = SHA256(JSON.stringify(clonedSelf)).toString();
+      resolve(self.hash === newHash);
+    }); 
   }
 
   /**
