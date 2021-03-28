@@ -45,8 +45,9 @@ class Blockchain {
    * Utility method that return a Promise that will resolve with the height of the chain
    */
   getChainHeight() {
+    const self = this;
     return new Promise((resolve, reject) => {
-      resolve(this.height);
+      resolve(self.height);
     });
   }
 
@@ -66,15 +67,15 @@ class Blockchain {
     let self = this;
     return new Promise(async (resolve, reject) => {
       try {
-        const height = await this.getChainHeight();
-        block.height = height + 1;
+        block.height = self.height + 1;
         block.time = new Date().getTime().toString().slice(0,-3);
-        const prevBlock = this.getBlockByHeight(height);
+        const prevBlock = self.chain[self.height];
         block.previousBlockHash = prevBlock ? prevBlock.hash : null;
         block.hash = SHA256(JSON.stringify(block)).toString();
         this.chain.push(block);
         self.height += 1;
-        resolve(block)
+        resolve(block);
+        self.validateChain();
       } catch(e) {
         reject(e);
       }
@@ -126,10 +127,10 @@ class Blockchain {
           reject(Error('Error: Message could not verified'));
         }
         const newBlock = new Block({ owner: address, star });
-        this._addBlock(newBlock);
-        this.validateChain();
+        await this._addBlock(newBlock);
         resolve(newBlock);
       } catch(e) {
+        console.log(e);
         reject(e);
       }
     });
@@ -177,9 +178,9 @@ class Blockchain {
     let stars = [];
     return new Promise((resolve) => {
       self.chain.forEach(block => {
-        const { owner, star } = block.getBData();
-        if (owner === address) {
-          stars.push(star);
+        const blockData = block.getBData();
+        if (blockData.owner === address) {
+          stars.push(blockData);
         }
       });
       resolve(stars);
@@ -197,19 +198,18 @@ class Blockchain {
     let errorLog = [];
     return new Promise(async (resolve, reject) => {
       if (self.height > 0) {
-        self.chain.forEach(async (block, idx) => {
+        for (let i = 1; i < self.chain.length; i++) {
+          const block = self.chain[i];
           const isValid = await block.validate();
           if (!isValid) {
             errorLog.push(Error('Error validating block'));
           }
-          if (idx > 0 && block.previousBlockHash !== self.chain[idx - 1].hash) {
+          if (i > 0 && block.previousBlockHash !== self.chain[i - 1].hash) {
             errorLog.push(Error('Error validating previous block hash'));
           }
-        });
-          resolve(errorLog);
-      } else {
-        reject(Error('Cannot validate chain'));
+        }
       }
+      resolve(errorLog);
     });
   }
 }
